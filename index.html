@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor Agent</title>
+    <!-- 1. Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Simple scrollbar styling for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans flex flex-col h-screen">
+
+    <!-- HEADER SECTION -->
+    <header class="bg-white shadow-md p-4">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold text-gray-800">Financial Advisor Agent</h1>
+            <p class="text-sm text-gray-500">Powered by LangChain & OpenAI</p>
+        </div>
+    </header>
+
+    <!-- CHAT CONTAINER -->
+    <main class="flex-1 container mx-auto p-4 flex flex-col">
+        <!-- Message display area -->
+        <div id="chat-window" class="flex-1 bg-white rounded-lg shadow-inner p-6 overflow-y-auto mb-4">
+            <!-- Initial welcome message from the agent -->
+            <div class="flex items-start gap-3 mb-6">
+                <div class="bg-blue-500 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center font-bold">A</div>
+                <div class="bg-gray-200 p-4 rounded-lg shadow-sm max-w-lg">
+                    <p class="text-gray-800">Hello! I am your financial advisor. Ask me about the latest market news, stock price targets, or top risers and droppers.</p>
+                </div>
+            </div>
+            <!-- Dynamic messages will be added here by JavaScript -->
+        </div>
+
+        <!-- INPUT AREA -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <form id="chat-form" class="flex items-center gap-4">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    placeholder="Ask a financial question..." 
+                    class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    autocomplete="off">
+                <button 
+                    type="submit" 
+                    class="bg-blue-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-300 flex items-center justify-center">
+                    <!-- Send Icon SVG -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        // 2. JAVASCRIPT LOGIC
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        
+        // The URL of your Python backend server
+        const backendUrl = 'http://127.0.0.1:5000/query';
+
+        // Listen for when the user submits the form (presses Enter or clicks the button)
+        chatForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevents the webpage from reloading
+
+            const userMessage = messageInput.value.trim(); // Get the user's message
+            if (userMessage === '') return; // Don't send empty messages
+
+            // Step 1: Display the user's message in the chat window
+            displayUserMessage(userMessage);
+
+            // Step 2: Show a loading indicator for the agent's response
+            const loadingIndicator = displayLoadingIndicator();
+
+            // Step 3: Send the message to the backend and get the agent's response
+            fetchAgentResponse(userMessage)
+                .then(agentResponse => {
+                    // Remove the loading indicator and display the real response
+                    loadingIndicator.remove();
+                    displayAgentMessage(agentResponse);
+                })
+                .catch(error => {
+                    // If something goes wrong, show an error message
+                    loadingIndicator.remove();
+                    displayAgentMessage("Sorry, I'm having trouble connecting to my brain right now. Please check if the backend server is running and try again.");
+                    console.error('Error fetching agent response:', error);
+                });
+
+            // Clear the input box and get ready for the next message
+            messageInput.value = '';
+        });
+
+        // Function to add the user's message to the chat window
+        function displayUserMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `
+                <div class="flex items-start gap-3 mb-6 justify-end">
+                    <div class="bg-gray-700 p-4 rounded-lg shadow-sm max-w-lg">
+                        <p class="text-white">${message}</p>
+                    </div>
+                    <div class="bg-gray-700 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center font-bold">U</div>
+                </div>
+            `;
+            chatWindow.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        // Function to add the agent's message to the chat window
+        function displayAgentMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `
+                <div class="flex items-start gap-3 mb-6">
+                    <div class="bg-blue-500 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center font-bold">A</div>
+                    <div class="bg-gray-200 p-4 rounded-lg shadow-sm max-w-lg">
+                        <p class="text-gray-800">${message}</p>
+                    </div>
+                </div>
+            `;
+            chatWindow.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        // Function to show a "typing..." style loading indicator
+        function displayLoadingIndicator() {
+            const loadingElement = document.createElement('div');
+            loadingElement.innerHTML = `
+                <div class="flex items-start gap-3 mb-6">
+                    <div class="bg-blue-500 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center font-bold">A</div>
+                    <div class="bg-gray-200 p-4 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-center gap-2">
+                           <div class="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                           <div class="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                           <div class="h-2 w-2 bg-gray-500 rounded-full animate-bounce"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatWindow.appendChild(loadingElement);
+            scrollToBottom();
+            return loadingElement; // Return the element so we can remove it later
+        }
+
+        // Function to communicate with your Python Flask backend
+        async function fetchAgentResponse(userQuery) {
+            const response = await fetch(backendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: userQuery })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.answer || "I received a response, but I'm not sure what to say.";
+        }
+        
+        // Helper function to automatically scroll to the bottom of the chat window
+        function scrollToBottom() {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+    </script>
+</body>
+</html>
